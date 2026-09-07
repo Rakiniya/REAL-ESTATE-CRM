@@ -5,13 +5,19 @@ from pydantic import BaseModel, ConfigDict
 from app.models.models import UnitStatus
 
 
-# -------------------------
-# PROJECT
-# -------------------------
+# =========================
+# Project
+# =========================
 
 class ProjectCreate(BaseModel):
     name: str
     location: str
+    description: str | None = None
+
+
+class ProjectUpdate(BaseModel):
+    name: str | None = None
+    location: str | None = None
     description: str | None = None
 
 
@@ -24,12 +30,16 @@ class ProjectResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# -------------------------
-# BUILDING
-# -------------------------
+# =========================
+# Building
+# =========================
 
 class BuildingCreate(BaseModel):
     name: str
+
+
+class BuildingUpdate(BaseModel):
+    name: str | None = None
 
 
 class BuildingResponse(BaseModel):
@@ -40,9 +50,9 @@ class BuildingResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# -------------------------
-# UNIT
-# -------------------------
+# =========================
+# Unit
+# =========================
 
 class UnitCreate(BaseModel):
     unit_number: str

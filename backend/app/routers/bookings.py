@@ -185,10 +185,65 @@ def get_booking(
 # CANCEL BOOKING
 # -------------------------
 
-@router.put(
-    "/{booking_id}/cancel",
-    response_model=BookingResponse
-)
+@router.put("/{booking_id}/cancel", response_model=BookingResponse)
+def cancel_booking(
+    booking_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_sales_or_admin),
+):
+    booking = (
+        db.query(Booking)
+        .filter(Booking.id == booking_id)
+        .first()
+    )
+
+    if booking is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking not found",
+        )
+
+    if (
+        current_user.role == UserRole.SALES_EMPLOYEE
+        and booking.booked_by != current_user.id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only cancel your own bookings",
+        )
+
+    if booking.status == BookingStatus.CANCELLED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Booking is already cancelled",
+        )
+
+    booking.status = BookingStatus.CANCELLED
+
+    # Release the unit.
+    unit = (
+        db.query(Unit)
+        .filter(Unit.id == booking.unit_id)
+        .first()
+    )
+
+    if unit is not None:
+        unit.status = UnitStatus.AVAILABLE
+
+    # The lead is no longer actively booked.
+    lead = (
+        db.query(Lead)
+        .filter(Lead.id == booking.lead_id)
+        .first()
+    )
+
+    if lead is not None and lead.stage == LeadStage.BOOKED:
+        lead.stage = LeadStage.NEGOTIATION
+
+    db.commit()
+    db.refresh(booking)
+
+    return booking
 def cancel_booking(
     booking_id: int,
     db: Session = Depends(get_db),

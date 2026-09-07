@@ -1,23 +1,28 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import require_admin, require_sales_or_admin
 from app.models.models import (
-    Project,
+    Booking,
+    BookingStatus,
     Building,
+    Project,
     Unit,
-    User,
     UnitStatus,
+    User,
 )
 from app.schemas.property import (
-    ProjectCreate,
-    ProjectResponse,
     BuildingCreate,
     BuildingResponse,
+    BuildingUpdate,
+    ProjectCreate,
+    ProjectResponse,
+    ProjectUpdate,
     UnitCreate,
-    UnitUpdate,
     UnitResponse,
+    UnitUpdate,
 )
 
 
@@ -244,34 +249,85 @@ def get_unit(
     return unit
 
 
-@router.put(
-    "/units/{unit_id}",
-    response_model=UnitResponse
-)
+@router.put("/units/{unit_id}", response_model=UnitResponse)
 def update_unit(
     unit_id: int,
     data: UnitUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin)
+    current_user: User = Depends(require_admin),
 ):
-    unit = db.query(Unit).filter(
-        Unit.id == unit_id
-    ).first()
+    unit = db.query(Unit).filter(Unit.id == unit_id).first()
 
     if unit is None:
         raise HTTPException(
-            status_code=404,
-            detail="Unit not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Unit not found",
         )
 
-    update_data = data.model_dump(
-        exclude_unset=True
+    # A unit with a confirmed booking cannot be manually made AVAILABLE.
+    confirmed_booking = (
+        db.query(Booking)
+        .filter(
+            Booking.unit_id == unit_id,
+            Booking.status == BookingStatus.CONFIRMED,
+        )
+        .first()
     )
 
-    for key, value in update_data.items():
-        setattr(unit, key, value)
+    if (
+        confirmed_booking
+        and data.status is not None
+        and data.status != UnitStatus.BOOKED
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A unit with a confirmed booking must remain BOOKED",
+        )
 
-    db.commit()
-    db.refresh(unit)
+    if data.unit_number is not None:
+        duplicate = (
+            db.query(Unit)
+            .filter(
+                Unit.building_id == unit.building_id,
+                Unit.unit_number == data.unit_number,
+                Unit.id != unit_id,
+            )
+            .first()
+        )
+
+        if duplicate:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A unit with this number already exists in the building",
+            )
+
+        unit.unit_number = data.unit_number
+
+    if data.type is not None:
+        unit.type = data.type
+
+    if data.price is not None:
+        if data.price <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unit price must be greater than zero",
+            )
+
+        unit.price = data.price
+
+    if data.status is not None:
+        unit.status = data.status
+
+    try:
+        db.commit()
+        db.refresh(unit)
+
+    except IntegrityError:
+        db.rollback()
+
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Unable to update unit",
+        )
 
     return unit

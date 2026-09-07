@@ -1,12 +1,12 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-
 import { useAuth } from "../context/AuthContext";
 
-export default function ProtectedRoute() {
+export default function ProtectedRoute({
+  allowedRoles,
+}) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
-  // Wait while AuthContext verifies the saved JWT
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
@@ -25,19 +25,30 @@ export default function ProtectedRoute() {
     );
   }
 
-  // No valid user session
   if (!user) {
     return (
       <Navigate
         to="/login"
         replace
+        state={{ from: location }}
+      />
+    );
+  }
+
+  if (
+    allowedRoles &&
+    !allowedRoles.includes(user.role)
+  ) {
+    return (
+      <Navigate
+        to="/dashboard"
+        replace
         state={{
-          from: location,
+          unauthorized: true,
         }}
       />
     );
   }
 
-  // Valid authenticated user
   return <Outlet />;
 }

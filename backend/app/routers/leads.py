@@ -8,8 +8,10 @@ from app.dependencies import (
     require_sales_or_admin,
 )
 from app.models.models import (
+    Booking,
+    BookingStatus,
     Lead,
-    LeadNote,
+    LeadStage,
     User,
     UserRole,
 )
@@ -141,10 +143,89 @@ def get_lead(
 
 
 # UPDATE LEAD
-@router.put(
-    "/{lead_id}",
-    response_model=LeadResponse
-)
+@router.put("/{lead_id}", response_model=LeadResponse)
+def update_lead(
+    lead_id: int,
+    data: LeadUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+
+    if lead is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lead not found",
+        )
+
+    # Check whether this lead has a confirmed booking.
+    confirmed_booking = (
+        db.query(Booking)
+        .filter(
+            Booking.lead_id == lead_id,
+            Booking.status == BookingStatus.CONFIRMED,
+        )
+        .first()
+    )
+
+    # A lead with a confirmed booking must remain BOOKED.
+    if (
+        confirmed_booking
+        and data.stage is not None
+        and data.stage != LeadStage.BOOKED
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A lead with a confirmed booking must remain BOOKED",
+        )
+
+    # A lead cannot be marked BOOKED without a confirmed booking.
+    if (
+        data.stage == LeadStage.BOOKED
+        and confirmed_booking is None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A lead can only be marked BOOKED after a confirmed booking",
+        )
+
+    if data.assigned_to is not None:
+        employee = (
+            db.query(User)
+            .filter(
+                User.id == data.assigned_to,
+                User.role == UserRole.SALES_EMPLOYEE,
+            )
+            .first()
+        )
+
+        if employee is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Lead must be assigned to a valid sales employee",
+            )
+
+        lead.assigned_to = data.assigned_to
+
+    if data.name is not None:
+        lead.name = data.name
+
+    if data.email is not None:
+        lead.email = data.email
+
+    if data.phone is not None:
+        lead.phone = data.phone
+
+    if data.stage is not None:
+        lead.stage = data.stage
+
+    if data.follow_up_date is not None:
+        lead.follow_up_date = data.follow_up_date
+
+    db.commit()
+    db.refresh(lead)
+
+    return lead
 def update_lead(
     lead_id: int,
     lead_data: LeadUpdate,

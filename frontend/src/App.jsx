@@ -14,11 +14,15 @@ export default function App() {
   return (
     <Routes>
       {/* Public */}
-      <Route path="/login" element={<Login />} />
+      <Route
+        path="/login"
+        element={<Login />}
+      />
 
-      {/* Protected */}
+      {/* Authenticated users */}
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
+
           <Route
             path="/dashboard"
             element={<Dashboard />}
@@ -39,10 +43,20 @@ export default function App() {
             element={<Bookings />}
           />
 
+          {/* Admin only */}
           <Route
-            path="/employees"
-            element={<Employees />}
-          />
+            element={
+              <ProtectedRoute
+                allowedRoles={["ADMIN"]}
+              />
+            }
+          >
+            <Route
+              path="/employees"
+              element={<Employees />}
+            />
+          </Route>
+
         </Route>
       </Route>
 
@@ -57,7 +71,7 @@ export default function App() {
         }
       />
 
-      {/* Unknown route */}
+      {/* Unknown routes */}
       <Route
         path="*"
         element={
