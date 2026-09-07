@@ -5,6 +5,7 @@ from app.routers.leads import router as leads_router
 from app.routers.properties import router as properties_router
 from app.routers.bookings import router as bookings_router
 from app.routers.dashboard import router as dashboard_router
+from fastapi.middleware.cors import CORSMiddleware
 from app.models.models import (
     User,
     Lead,
@@ -63,3 +64,15 @@ def health_check():
             "database": "disconnected",
             "error": str(e)
         }
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)    
