@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.database import engine, Base
 from app.routers.leads import router as leads_router
 from app.routers.properties import router as properties_router
+from app.routers.bookings import router as bookings_router
 from app.models.models import (
     User,
     Lead,
@@ -35,6 +36,7 @@ Base.metadata.create_all(bind=engine)
 app.include_router(auth_router)
 app.include_router(leads_router)
 app.include_router(properties_router)
+app.include_router(bookings_router)
 
 
 @app.get("/")
