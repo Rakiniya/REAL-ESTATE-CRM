@@ -6,6 +6,7 @@ from app.routers.properties import router as properties_router
 from app.routers.bookings import router as bookings_router
 from app.routers.dashboard import router as dashboard_router
 from fastapi.middleware.cors import CORSMiddleware
+from app.routers.users import router as users_router
 from app.models.models import (
     User,
     Lead,
@@ -40,6 +41,7 @@ app.include_router(leads_router)
 app.include_router(properties_router)
 app.include_router(bookings_router)
 app.include_router(dashboard_router)
+app.include_router(users_router)
 
 
 @app.get("/")
