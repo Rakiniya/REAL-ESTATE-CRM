@@ -15,6 +15,8 @@ from app.models.models import (
     BookingStatus,
 )
 
+from app.routers.auth import router as auth_router
+
 
 app = FastAPI(
     title="Real Estate CRM API",
@@ -25,6 +27,10 @@ app = FastAPI(
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
+
+
+# Authentication routes
+app.include_router(auth_router)
 
 
 @app.get("/")
