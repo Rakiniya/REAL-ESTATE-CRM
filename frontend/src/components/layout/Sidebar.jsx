@@ -41,6 +41,17 @@ export default function Sidebar({
       path: "/bookings",
       icon: CalendarCheck,
     },
+
+    // Employees is visible ONLY to Admin
+    ...(user?.role === "ADMIN"
+      ? [
+          {
+            label: "Employees",
+            path: "/employees",
+            icon: Users,
+          },
+        ]
+      : []),
   ];
 
   const handleLogout = () => {
@@ -67,13 +78,17 @@ export default function Sidebar({
           w-64
         `}
       >
-        {/* Logo */}
+        {/* =========================================================
+            LOGO
+        ========================================================== */}
         <div className="flex h-16 items-center justify-between border-b border-slate-100 px-4">
           <div className="flex items-center gap-3 overflow-hidden">
+            {/* Logo icon */}
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-600">
               <Building2 className="h-5 w-5 text-white" />
             </div>
 
+            {/* Desktop logo */}
             {!collapsed && (
               <div className="hidden lg:block">
                 <p className="whitespace-nowrap text-sm font-bold text-slate-900">
@@ -86,16 +101,19 @@ export default function Sidebar({
               </div>
             )}
 
+            {/* Mobile logo */}
             <div className="lg:hidden">
               <p className="text-sm font-bold text-slate-900">
                 EstateFlow
               </p>
+
               <p className="text-[10px] text-slate-400">
                 Real Estate CRM
               </p>
             </div>
           </div>
 
+          {/* Mobile close */}
           <button
             onClick={onMobileClose}
             className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 lg:hidden"
@@ -104,8 +122,11 @@ export default function Sidebar({
           </button>
         </div>
 
-        {/* Navigation */}
+        {/* =========================================================
+            NAVIGATION
+        ========================================================== */}
         <nav className="flex-1 space-y-1 p-3">
+          {/* Workspace title */}
           <p
             className={`mb-3 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 ${
               collapsed ? "lg:hidden" : ""
@@ -136,6 +157,7 @@ export default function Sidebar({
               >
                 {({ isActive }) => (
                   <>
+                    {/* Icon */}
                     <Icon
                       className={`h-5 w-5 shrink-0 ${
                         isActive
@@ -144,6 +166,7 @@ export default function Sidebar({
                       }`}
                     />
 
+                    {/* Label */}
                     <span
                       className={`whitespace-nowrap ${
                         collapsed ? "lg:hidden" : ""
@@ -158,13 +181,16 @@ export default function Sidebar({
           })}
         </nav>
 
-        {/* User */}
+        {/* =========================================================
+            USER PROFILE
+        ========================================================== */}
         <div className="border-t border-slate-100 p-3">
           <div
             className={`mb-2 flex items-center gap-3 rounded-lg bg-slate-50 p-3 ${
               collapsed ? "lg:justify-center" : ""
             }`}
           >
+            {/* Avatar */}
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-100 text-xs font-bold text-primary-700">
               {user?.name
                 ?.split(" ")
@@ -174,6 +200,7 @@ export default function Sidebar({
                 .toUpperCase()}
             </div>
 
+            {/* User information */}
             <div
               className={`min-w-0 ${
                 collapsed ? "lg:hidden" : ""
@@ -191,6 +218,7 @@ export default function Sidebar({
             </div>
           </div>
 
+          {/* Logout */}
           <button
             onClick={handleLogout}
             className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-600 ${
@@ -205,7 +233,9 @@ export default function Sidebar({
           </button>
         </div>
 
-        {/* Collapse */}
+        {/* =========================================================
+            COLLAPSE BUTTON
+        ========================================================== */}
         <button
           onClick={onToggle}
           className="absolute -right-3 top-20 hidden h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm hover:text-slate-800 lg:flex"

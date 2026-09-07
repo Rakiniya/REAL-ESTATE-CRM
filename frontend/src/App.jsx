@@ -8,6 +8,7 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 import AppLayout from "./components/layout/AppLayout";
 import Properties from "./pages/Properties";
 import Bookings from "./pages/Bookings";
+import Employees from "./pages/Employees";
 
 export default function App() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
 
           <Route path="/properties" element={<Properties />} />
           <Route path="/bookings" element={<Bookings />} />
+          <Route path="/employees" element={<Employees />} />
 
           {/* These will be added next */}
           {/* 
