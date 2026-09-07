@@ -6,6 +6,7 @@ import Leads from "./pages/Leads";
 
 import ProtectedRoute from "./routes/ProtectedRoute";
 import AppLayout from "./components/layout/AppLayout";
+import Properties from "./pages/Properties";
 
 export default function App() {
   return (
@@ -28,6 +29,8 @@ export default function App() {
             path="/leads"
             element={<Leads />}
           />
+
+          <Route path="/properties" element={<Properties />} />
 
           {/* These will be added next */}
           {/* 
