@@ -7,6 +7,7 @@ import Leads from "./pages/Leads";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import AppLayout from "./components/layout/AppLayout";
 import Properties from "./pages/Properties";
+import Bookings from "./pages/Bookings";
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
           />
 
           <Route path="/properties" element={<Properties />} />
+          <Route path="/bookings" element={<Bookings />} />
 
           {/* These will be added next */}
           {/* 
