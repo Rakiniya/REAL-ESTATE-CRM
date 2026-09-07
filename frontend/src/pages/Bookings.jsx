@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   CheckCircle2,
-  ChevronDown,
   Home,
   Plus,
   RefreshCw,
@@ -66,6 +65,16 @@ function EmptyState() {
   );
 }
 
+function FieldError({ message }) {
+  if (!message) return null;
+
+  return (
+    <p className="mt-1.5 text-xs font-medium text-red-600">
+      {message}
+    </p>
+  );
+}
+
 export default function Bookings() {
   const { user } = useAuth();
 
@@ -95,6 +104,8 @@ export default function Bookings() {
     lead_id: "",
     unit_id: "",
   });
+
+  const [errors, setErrors] = useState({});
 
   const loadBookings = async () => {
     try {
@@ -149,6 +160,8 @@ export default function Bookings() {
       unit_id: "",
     });
 
+    setErrors({});
+
     setSelectedProjectId("");
     setSelectedBuildingId("");
     setBuildings([]);
@@ -162,9 +175,18 @@ export default function Bookings() {
     const projectId = event.target.value;
 
     setSelectedProjectId(projectId);
+
     setSelectedBuildingId("");
+
     setForm((previous) => ({
       ...previous,
+      unit_id: "",
+    }));
+
+    setErrors((previous) => ({
+      ...previous,
+      project_id: "",
+      building_id: "",
       unit_id: "",
     }));
 
@@ -174,9 +196,8 @@ export default function Bookings() {
     }
 
     try {
-      const data = await propertyService.getBuildings(
-        projectId
-      );
+      const data =
+        await propertyService.getBuildings(projectId);
 
       setBuildings(data);
     } catch (error) {
@@ -184,6 +205,7 @@ export default function Bookings() {
         error.response?.data?.detail ||
           "Unable to load buildings."
       );
+
       setBuildings([]);
     }
   };
@@ -198,36 +220,86 @@ export default function Bookings() {
       unit_id: "",
     }));
 
+    setErrors((previous) => ({
+      ...previous,
+      building_id: "",
+      unit_id: "",
+    }));
+
     if (!buildingId) {
       return;
     }
 
     try {
-      const data = await propertyService.getUnits(
-        buildingId
-      );
+      const data =
+        await propertyService.getUnits(buildingId);
 
       setUnits(
-        data.filter((unit) => unit.status === "AVAILABLE")
+        data.filter(
+          (unit) => unit.status === "AVAILABLE"
+        )
       );
     } catch (error) {
       toast.error(
         error.response?.data?.detail ||
           "Unable to load units."
       );
+
+      setUnits([]);
     }
+  };
+
+  const validateBooking = () => {
+    const newErrors = {};
+
+    if (!form.lead_id) {
+      newErrors.lead_id =
+        "Please select a customer or lead.";
+    }
+
+    if (!selectedProjectId) {
+      newErrors.project_id =
+        "Please select a project.";
+    }
+
+    if (!selectedBuildingId) {
+      newErrors.building_id =
+        "Please select a building.";
+    }
+
+    if (!form.unit_id) {
+      newErrors.unit_id =
+        "Please select an available unit.";
+    }
+
+    if (form.unit_id) {
+      const selected = units.find(
+        (unit) =>
+          String(unit.id) === String(form.unit_id)
+      );
+
+      if (!selected) {
+        newErrors.unit_id =
+          "The selected unit is no longer available.";
+      } else if (selected.status !== "AVAILABLE") {
+        newErrors.unit_id =
+          "This unit is no longer available.";
+      }
+    }
+
+    setErrors(newErrors);
+
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleCreateBooking = async (event) => {
     event.preventDefault();
 
-    if (!form.lead_id) {
-      toast.error("Please select a lead.");
-      return;
-    }
+    if (!validateBooking()) {
+      toast.error(
+        "Please complete all required fields."
+      );
 
-    if (!form.unit_id) {
-      toast.error("Please select an available unit.");
       return;
     }
 
@@ -239,7 +311,9 @@ export default function Bookings() {
         unit_id: Number(form.unit_id),
       });
 
-      toast.success("Booking created successfully.");
+      toast.success(
+        "Booking created successfully."
+      );
 
       setBookingModalOpen(false);
 
@@ -249,11 +323,18 @@ export default function Bookings() {
         lead_id: "",
         unit_id: "",
       });
+
+      setErrors({});
     } catch (error) {
       if (error.response?.status === 409) {
         toast.error(
           "This unit has already been booked. Please select another unit."
         );
+
+        setErrors({
+          unit_id:
+            "This unit was just booked by another user. Please select another unit.",
+        });
 
         await loadFormData();
       } else {
@@ -282,7 +363,9 @@ export default function Bookings() {
         selectedBooking.id
       );
 
-      toast.success("Booking cancelled successfully.");
+      toast.success(
+        "Booking cancelled successfully."
+      );
 
       setCancelModalOpen(false);
       setSelectedBooking(null);
@@ -325,7 +408,8 @@ export default function Bookings() {
   ).length;
 
   const selectedUnit = units.find(
-    (unit) => String(unit.id) === String(form.unit_id)
+    (unit) =>
+      String(unit.id) === String(form.unit_id)
   );
 
   return (
@@ -449,9 +533,17 @@ export default function Bookings() {
                 }
                 className="input"
               >
-                <option value="ALL">All statuses</option>
-                <option value="CONFIRMED">Confirmed</option>
-                <option value="CANCELLED">Cancelled</option>
+                <option value="ALL">
+                  All statuses
+                </option>
+
+                <option value="CONFIRMED">
+                  Confirmed
+                </option>
+
+                <option value="CANCELLED">
+                  Cancelled
+                </option>
               </select>
             </div>
           </div>
@@ -529,7 +621,9 @@ export default function Bookings() {
                     </td>
 
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
-                      {formatDate(booking.booking_date)}
+                      {formatDate(
+                        booking.booking_date
+                      )}
                     </td>
 
                     <td className="whitespace-nowrap px-5 py-4">
@@ -540,11 +634,14 @@ export default function Bookings() {
                     </td>
 
                     <td className="whitespace-nowrap px-5 py-4 text-right">
-                      {booking.status === "CONFIRMED" && (
+                      {booking.status ===
+                        "CONFIRMED" && (
                         <button
                           type="button"
                           onClick={() =>
-                            openCancelModal(booking)
+                            openCancelModal(
+                              booking
+                            )
                           }
                           className="rounded-lg px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50"
                         >
@@ -552,7 +649,8 @@ export default function Bookings() {
                         </button>
                       )}
 
-                      {booking.status === "CANCELLED" && (
+                      {booking.status ===
+                        "CANCELLED" && (
                         <span className="text-xs font-medium text-slate-400">
                           Cancelled
                         </span>
@@ -569,7 +667,11 @@ export default function Bookings() {
       {/* Create Booking Modal */}
       <Modal
         open={bookingModalOpen}
-        onClose={() => setBookingModalOpen(false)}
+        onClose={() => {
+          if (!saving) {
+            setBookingModalOpen(false);
+          }
+        }}
         title="Create New Booking"
         description="Connect a lead with an available property unit."
         size="lg"
@@ -580,33 +682,53 @@ export default function Bookings() {
           <form
             onSubmit={handleCreateBooking}
             className="space-y-6"
+            noValidate
           >
             {/* Lead */}
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Customer / Lead
+                <span className="ml-1 text-red-500">
+                  *
+                </span>
               </label>
 
               <select
                 value={form.lead_id}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
+                onChange={(event) => {
+                  setForm((previous) => ({
+                    ...previous,
                     lead_id: event.target.value,
-                  })
-                }
-                className="input"
+                  }));
+
+                  setErrors((previous) => ({
+                    ...previous,
+                    lead_id: "",
+                  }));
+                }}
+                className={`input ${
+                  errors.lead_id
+                    ? "border-red-300 focus:border-red-500 focus:ring-red-100"
+                    : ""
+                }`}
               >
                 <option value="">
                   Select a lead
                 </option>
 
                 {leads.map((lead) => (
-                  <option key={lead.id} value={lead.id}>
+                  <option
+                    key={lead.id}
+                    value={lead.id}
+                  >
                     {lead.name} — Lead #{lead.id}
                   </option>
                 ))}
               </select>
+
+              <FieldError
+                message={errors.lead_id}
+              />
 
               {leads.length === 0 && (
                 <p className="mt-2 text-xs text-amber-600">
@@ -619,12 +741,19 @@ export default function Bookings() {
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Project
+                <span className="ml-1 text-red-500">
+                  *
+                </span>
               </label>
 
               <select
                 value={selectedProjectId}
                 onChange={handleProjectChange}
-                className="input"
+                className={`input ${
+                  errors.project_id
+                    ? "border-red-300 focus:border-red-500 focus:ring-red-100"
+                    : ""
+                }`}
               >
                 <option value="">
                   Select a project
@@ -635,23 +764,35 @@ export default function Bookings() {
                     key={project.id}
                     value={project.id}
                   >
-                    {project.name} — {project.location}
+                    {project.name} —{" "}
+                    {project.location}
                   </option>
                 ))}
               </select>
+
+              <FieldError
+                message={errors.project_id}
+              />
             </div>
 
             {/* Building */}
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Building
+                <span className="ml-1 text-red-500">
+                  *
+                </span>
               </label>
 
               <select
                 value={selectedBuildingId}
                 onChange={handleBuildingChange}
                 disabled={!selectedProjectId}
-                className="input disabled:cursor-not-allowed disabled:bg-slate-50"
+                className={`input disabled:cursor-not-allowed disabled:bg-slate-50 ${
+                  errors.building_id
+                    ? "border-red-300 focus:border-red-500 focus:ring-red-100"
+                    : ""
+                }`}
               >
                 <option value="">
                   {selectedProjectId
@@ -668,24 +809,40 @@ export default function Bookings() {
                   </option>
                 ))}
               </select>
+
+              <FieldError
+                message={errors.building_id}
+              />
             </div>
 
             {/* Unit */}
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Available Unit
+                <span className="ml-1 text-red-500">
+                  *
+                </span>
               </label>
 
               <select
                 value={form.unit_id}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
+                onChange={(event) => {
+                  setForm((previous) => ({
+                    ...previous,
                     unit_id: event.target.value,
-                  })
-                }
+                  }));
+
+                  setErrors((previous) => ({
+                    ...previous,
+                    unit_id: "",
+                  }));
+                }}
                 disabled={!selectedBuildingId}
-                className="input disabled:cursor-not-allowed disabled:bg-slate-50"
+                className={`input disabled:cursor-not-allowed disabled:bg-slate-50 ${
+                  errors.unit_id
+                    ? "border-red-300 focus:border-red-500 focus:ring-red-100"
+                    : ""
+                }`}
               >
                 <option value="">
                   {selectedBuildingId
@@ -698,16 +855,22 @@ export default function Bookings() {
                     key={unit.id}
                     value={unit.id}
                   >
-                    {unit.unit_number} — {unit.type} —{" "}
+                    {unit.unit_number} —{" "}
+                    {unit.type} —{" "}
                     {formatPrice(unit.price)}
                   </option>
                 ))}
               </select>
 
+              <FieldError
+                message={errors.unit_id}
+              />
+
               {selectedBuildingId &&
                 units.length === 0 && (
                   <p className="mt-2 text-xs text-amber-600">
-                    No available units in this building.
+                    No available units in this
+                    building.
                   </p>
                 )}
             </div>
@@ -736,12 +899,16 @@ export default function Bookings() {
                     </p>
 
                     <p className="mt-1 text-sm font-bold text-slate-900">
-                      {formatPrice(selectedUnit.price)}
+                      {formatPrice(
+                        selectedUnit.price
+                      )}
                     </p>
 
                     <div className="mt-1">
                       <Badge
-                        value={selectedUnit.status}
+                        value={
+                          selectedUnit.status
+                        }
                         type="status"
                       />
                     </div>
@@ -757,14 +924,19 @@ export default function Bookings() {
                 onClick={() =>
                   setBookingModalOpen(false)
                 }
-                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                disabled={saving}
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cancel
               </button>
 
               <button
                 type="submit"
-                disabled={saving}
+                disabled={
+                  saving ||
+                  loadingFormData ||
+                  leads.length === 0
+                }
                 className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving
@@ -779,7 +951,11 @@ export default function Bookings() {
       {/* Cancel Confirmation */}
       <Modal
         open={cancelModalOpen}
-        onClose={() => setCancelModalOpen(false)}
+        onClose={() => {
+          if (!saving) {
+            setCancelModalOpen(false);
+          }
+        }}
         title="Cancel Booking"
         description="This will release the unit and make it available again."
         size="sm"
@@ -795,9 +971,10 @@ export default function Bookings() {
                 </p>
 
                 <p className="mt-1 text-xs leading-5 text-red-700">
-                  Booking #{selectedBooking?.id} will be
-                  cancelled and its unit will become
-                  available again.
+                  Booking #
+                  {selectedBooking?.id} will be
+                  cancelled and its unit will
+                  become available again.
                 </p>
               </div>
             </div>
@@ -806,8 +983,11 @@ export default function Bookings() {
           <div className="flex justify-end gap-3">
             <button
               type="button"
-              onClick={() => setCancelModalOpen(false)}
-              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+              onClick={() =>
+                setCancelModalOpen(false)
+              }
+              disabled={saving}
+              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Keep Booking
             </button>
