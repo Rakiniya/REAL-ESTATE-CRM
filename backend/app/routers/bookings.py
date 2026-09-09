@@ -26,9 +26,9 @@ router = APIRouter(
 )
 
 
-# -------------------------
+# =========================================================
 # CREATE BOOKING
-# -------------------------
+# =========================================================
 
 @router.post(
     "",
@@ -40,56 +40,82 @@ def create_booking(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_sales_or_admin)
 ):
+    # -----------------------------------------------------
     # Check lead
-    lead = db.query(Lead).filter(
-        Lead.id == data.lead_id
-    ).first()
+    # -----------------------------------------------------
+
+    lead = (
+        db.query(Lead)
+        .filter(Lead.id == data.lead_id)
+        .first()
+    )
 
     if lead is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Lead not found"
         )
 
-    # Sales employee can only book for assigned lead
+    # Sales employee can only book their assigned leads
     if (
         current_user.role == UserRole.SALES_EMPLOYEE
         and lead.assigned_to != current_user.id
     ):
         raise HTTPException(
-            status_code=403,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only book your assigned leads"
         )
 
+    # -----------------------------------------------------
     # Check unit
-    unit = db.query(Unit).filter(
-        Unit.id == data.unit_id
-    ).first()
+    # -----------------------------------------------------
+
+    unit = (
+        db.query(Unit)
+        .filter(Unit.id == data.unit_id)
+        .first()
+    )
 
     if unit is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Unit not found"
         )
 
-    # IMPORTANT: prevent duplicate booking
+    # -----------------------------------------------------
+    # Prevent booking an unavailable unit
+    # -----------------------------------------------------
+
     if unit.status == UnitStatus.BOOKED:
         raise HTTPException(
-            status_code=409,
+            status_code=status.HTTP_409_CONFLICT,
             detail="Unit is already booked"
         )
 
+    # -----------------------------------------------------
     # Extra database check
-    existing_booking = db.query(Booking).filter(
-        Booking.unit_id == data.unit_id,
-        Booking.status == BookingStatus.CONFIRMED
-    ).first()
+    # Only a CONFIRMED booking blocks the unit.
+    # CANCELLED bookings do not block re-booking.
+    # -----------------------------------------------------
+
+    existing_booking = (
+        db.query(Booking)
+        .filter(
+            Booking.unit_id == data.unit_id,
+            Booking.status == BookingStatus.CONFIRMED
+        )
+        .first()
+    )
 
     if existing_booking:
         raise HTTPException(
-            status_code=409,
+            status_code=status.HTTP_409_CONFLICT,
             detail="Unit is already booked"
         )
+
+    # -----------------------------------------------------
+    # Create booking
+    # -----------------------------------------------------
 
     booking = Booking(
         lead_id=data.lead_id,
@@ -98,10 +124,10 @@ def create_booking(
         status=BookingStatus.CONFIRMED
     )
 
-    # Change unit status
+    # Unit becomes booked
     unit.status = UnitStatus.BOOKED
 
-    # Change lead stage
+    # Lead becomes booked
     lead.stage = LeadStage.BOOKED
 
     db.add(booking)
@@ -114,16 +140,16 @@ def create_booking(
         db.rollback()
 
         raise HTTPException(
-            status_code=409,
+            status_code=status.HTTP_409_CONFLICT,
             detail="Unit is already booked"
         )
 
     return booking
 
 
-# -------------------------
-# GET BOOKINGS
-# -------------------------
+# =========================================================
+# GET ALL BOOKINGS
+# =========================================================
 
 @router.get(
     "",
@@ -135,20 +161,22 @@ def get_bookings(
 ):
     query = db.query(Booking)
 
-    # Sales employee sees their bookings
+    # Sales employee sees only their bookings
     if current_user.role == UserRole.SALES_EMPLOYEE:
         query = query.filter(
             Booking.booked_by == current_user.id
         )
 
-    return query.order_by(
-        Booking.booking_date.desc()
-    ).all()
+    return (
+        query
+        .order_by(Booking.booking_date.desc())
+        .all()
+    )
 
 
-# -------------------------
+# =========================================================
 # GET SINGLE BOOKING
-# -------------------------
+# =========================================================
 
 @router.get(
     "/{booking_id}",
@@ -159,38 +187,6 @@ def get_booking(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_sales_or_admin)
 ):
-    booking = db.query(Booking).filter(
-        Booking.id == booking_id
-    ).first()
-
-    if booking is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Booking not found"
-        )
-
-    if (
-        current_user.role == UserRole.SALES_EMPLOYEE
-        and booking.booked_by != current_user.id
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="Access denied"
-        )
-
-    return booking
-
-
-# -------------------------
-# CANCEL BOOKING
-# -------------------------
-
-@router.put("/{booking_id}/cancel", response_model=BookingResponse)
-def cancel_booking(
-    booking_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_sales_or_admin),
-):
     booking = (
         db.query(Booking)
         .filter(Booking.id == booking_id)
@@ -200,8 +196,54 @@ def cancel_booking(
     if booking is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Booking not found",
+            detail="Booking not found"
         )
+
+    # Sales employee can only view their own bookings
+    if (
+        current_user.role == UserRole.SALES_EMPLOYEE
+        and booking.booked_by != current_user.id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+
+    return booking
+
+
+# =========================================================
+# CANCEL BOOKING
+# =========================================================
+
+@router.put(
+    "/{booking_id}/cancel",
+    response_model=BookingResponse
+)
+def cancel_booking(
+    booking_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_sales_or_admin),
+):
+    # -----------------------------------------------------
+    # Find booking
+    # -----------------------------------------------------
+
+    booking = (
+        db.query(Booking)
+        .filter(Booking.id == booking_id)
+        .first()
+    )
+
+    if booking is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking not found"
+        )
+
+    # -----------------------------------------------------
+    # Sales employee can only cancel their own booking
+    # -----------------------------------------------------
 
     if (
         current_user.role == UserRole.SALES_EMPLOYEE
@@ -209,18 +251,29 @@ def cancel_booking(
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only cancel your own bookings",
+            detail="You can only cancel your own bookings"
         )
+
+    # -----------------------------------------------------
+    # Prevent cancelling twice
+    # -----------------------------------------------------
 
     if booking.status == BookingStatus.CANCELLED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Booking is already cancelled",
+            detail="Booking is already cancelled"
         )
+
+    # -----------------------------------------------------
+    # Cancel booking
+    # -----------------------------------------------------
 
     booking.status = BookingStatus.CANCELLED
 
-    # Release the unit.
+    # -----------------------------------------------------
+    # Release unit
+    # -----------------------------------------------------
+
     unit = (
         db.query(Unit)
         .filter(Unit.id == booking.unit_id)
@@ -230,60 +283,36 @@ def cancel_booking(
     if unit is not None:
         unit.status = UnitStatus.AVAILABLE
 
-    # The lead is no longer actively booked.
+    # -----------------------------------------------------
+    # Move lead back from BOOKED to NEGOTIATION
+    # -----------------------------------------------------
+
     lead = (
         db.query(Lead)
         .filter(Lead.id == booking.lead_id)
         .first()
     )
 
-    if lead is not None and lead.stage == LeadStage.BOOKED:
+    if (
+        lead is not None
+        and lead.stage == LeadStage.BOOKED
+    ):
         lead.stage = LeadStage.NEGOTIATION
 
-    db.commit()
-    db.refresh(booking)
+    # -----------------------------------------------------
+    # Save changes
+    # -----------------------------------------------------
 
-    return booking
-def cancel_booking(
-    booking_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_sales_or_admin)
-):
-    booking = db.query(Booking).filter(
-        Booking.id == booking_id
-    ).first()
+    try:
+        db.commit()
+        db.refresh(booking)
 
-    if booking is None:
+    except IntegrityError:
+        db.rollback()
+
         raise HTTPException(
-            status_code=404,
-            detail="Booking not found"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unable to cancel booking"
         )
-
-    if (
-        current_user.role == UserRole.SALES_EMPLOYEE
-        and booking.booked_by != current_user.id
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="You can only cancel your own bookings"
-        )
-
-    if booking.status == BookingStatus.CANCELLED:
-        raise HTTPException(
-            status_code=400,
-            detail="Booking is already cancelled"
-        )
-
-    booking.status = BookingStatus.CANCELLED
-
-    unit = db.query(Unit).filter(
-        Unit.id == booking.unit_id
-    ).first()
-
-    if unit:
-        unit.status = UnitStatus.AVAILABLE
-
-    db.commit()
-    db.refresh(booking)
 
     return booking
