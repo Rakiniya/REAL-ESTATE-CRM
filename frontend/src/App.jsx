@@ -19,6 +19,19 @@ export default function App() {
         element={<Login />}
       />
 
+      {/* Root */}
+      <Route element={<ProtectedRoute />}>
+        <Route
+          path="/"
+          element={
+            <Navigate
+              to="/dashboard"
+              replace
+            />
+          }
+        />
+      </Route>
+
       {/* Authenticated users */}
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
@@ -60,23 +73,12 @@ export default function App() {
         </Route>
       </Route>
 
-      {/* Default */}
-      <Route
-        path="/"
-        element={
-          <Navigate
-            to="/dashboard"
-            replace
-          />
-        }
-      />
-
       {/* Unknown routes */}
       <Route
         path="*"
         element={
           <Navigate
-            to="/dashboard"
+            to="/"
             replace
           />
         }

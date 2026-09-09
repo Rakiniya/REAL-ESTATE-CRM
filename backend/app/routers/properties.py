@@ -133,6 +133,46 @@ def get_buildings(
     ).all()
 
 
+@router.put(
+    "/buildings/{building_id}",
+    response_model=BuildingResponse
+)
+def update_building(
+    building_id: int,
+    data: BuildingUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    building = (
+        db.query(Building)
+        .filter(Building.id == building_id)
+        .first()
+    )
+
+    if building is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Building not found"
+        )
+
+    if data.name is not None:
+        building.name = data.name
+
+    try:
+        db.commit()
+        db.refresh(building)
+
+    except IntegrityError:
+        db.rollback()
+
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Unable to update building"
+        )
+
+    return building
+
+
 # -------------------------
 # UNITS
 # -------------------------
@@ -331,3 +371,49 @@ def update_unit(
         )
 
     return unit
+
+
+@router.put(
+    "/projects/{project_id}",
+    response_model=ProjectResponse
+)
+def update_project(
+    project_id: int,
+    data: ProjectUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    project = (
+        db.query(Project)
+        .filter(Project.id == project_id)
+        .first()
+    )
+
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found"
+        )
+
+    if data.name is not None:
+        project.name = data.name
+
+    if data.location is not None:
+        project.location = data.location
+
+    if data.description is not None:
+        project.description = data.description
+
+    try:
+        db.commit()
+        db.refresh(project)
+
+    except IntegrityError:
+        db.rollback()
+
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Unable to update project"
+        )
+
+    return project

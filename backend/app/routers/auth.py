@@ -29,9 +29,11 @@ def login(
     login_data: LoginRequest,
     db: Session = Depends(get_db)
 ):
-    user = db.query(User).filter(
-        User.email == login_data.email
-    ).first()
+    user = (
+        db.query(User)
+        .filter(User.email == login_data.email)
+        .first()
+    )
 
     if user is None:
         raise HTTPException(
@@ -46,6 +48,17 @@ def login(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
+        )
+
+    # Check selected role
+    if user.role != login_data.role:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=(
+                f"Incorrect role. "
+                f"This account is registered as "
+                f"{user.role.value}."
+            )
         )
 
     access_token = create_access_token({

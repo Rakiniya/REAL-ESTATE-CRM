@@ -19,6 +19,14 @@ const propertyService = {
     return response.data;
   },
 
+  async updateProject(projectId, data) {
+    const response = await api.put(
+      `/properties/projects/${projectId}`,
+      data
+    );
+
+    return response.data;
+  },
 
   // =====================================================
   // BUILDINGS
@@ -41,6 +49,14 @@ const propertyService = {
     return response.data;
   },
 
+  async updateBuilding(buildingId, data) {
+    const response = await api.put(
+      `/properties/buildings/${buildingId}`,
+      data
+    );
+
+    return response.data;
+  },
 
   // =====================================================
   // UNITS
@@ -91,4 +107,3 @@ const propertyService = {
 };
 
 export default propertyService;
-

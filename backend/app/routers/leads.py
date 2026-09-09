@@ -12,6 +12,7 @@ from app.models.models import (
     BookingStatus,
     Lead,
     LeadStage,
+    LeadNote,
     User,
     UserRole,
 )
