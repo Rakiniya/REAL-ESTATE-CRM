@@ -17,9 +17,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 
-# -------------------------
+# =========================================================
 # ENUMS
-# -------------------------
+# =========================================================
 
 class UserRole(str, Enum):
     ADMIN = "ADMIN"
@@ -46,9 +46,9 @@ class BookingStatus(str, Enum):
     CANCELLED = "CANCELLED"
 
 
-# -------------------------
+# =========================================================
 # USER
-# -------------------------
+# =========================================================
 
 class User(Base):
     __tablename__ = "users"
@@ -85,6 +85,10 @@ class User(Base):
         default=datetime.utcnow
     )
 
+    # -----------------------------------------------------
+    # Relationships
+    # -----------------------------------------------------
+
     # One employee can have many assigned leads
     leads: Mapped[list["Lead"]] = relationship(
         "Lead",
@@ -97,16 +101,16 @@ class User(Base):
         back_populates="created_by_user"
     )
 
-    # One employee can make many bookings
+    # One employee can create many bookings
     bookings: Mapped[list["Booking"]] = relationship(
         "Booking",
         back_populates="booked_by_user"
     )
 
 
-# -------------------------
+# =========================================================
 # LEAD
-# -------------------------
+# =========================================================
 
 class Lead(Base):
     __tablename__ = "leads"
@@ -158,7 +162,11 @@ class Lead(Base):
         onupdate=datetime.utcnow
     )
 
-    # Relationship with assigned employee
+    # -----------------------------------------------------
+    # Relationships
+    # -----------------------------------------------------
+
+    # Assigned employee
     assigned_employee: Mapped["User | None"] = relationship(
         "User",
         back_populates="leads"
@@ -171,16 +179,16 @@ class Lead(Base):
         cascade="all, delete-orphan"
     )
 
-    # One lead can have bookings
+    # One lead can have multiple historical bookings
     bookings: Mapped[list["Booking"]] = relationship(
         "Booking",
         back_populates="lead"
     )
 
 
-# -------------------------
+# =========================================================
 # LEAD NOTE
-# -------------------------
+# =========================================================
 
 class LeadNote(Base):
     __tablename__ = "lead_notes"
@@ -210,6 +218,10 @@ class LeadNote(Base):
         default=datetime.utcnow
     )
 
+    # -----------------------------------------------------
+    # Relationships
+    # -----------------------------------------------------
+
     lead: Mapped["Lead"] = relationship(
         "Lead",
         back_populates="notes"
@@ -221,9 +233,9 @@ class LeadNote(Base):
     )
 
 
-# -------------------------
+# =========================================================
 # PROJECT
-# -------------------------
+# =========================================================
 
 class Project(Base):
     __tablename__ = "projects"
@@ -253,6 +265,10 @@ class Project(Base):
         default=datetime.utcnow
     )
 
+    # -----------------------------------------------------
+    # Relationships
+    # -----------------------------------------------------
+
     # One project can have many buildings
     buildings: Mapped[list["Building"]] = relationship(
         "Building",
@@ -261,9 +277,9 @@ class Project(Base):
     )
 
 
-# -------------------------
+# =========================================================
 # BUILDING
-# -------------------------
+# =========================================================
 
 class Building(Base):
     __tablename__ = "buildings"
@@ -283,6 +299,10 @@ class Building(Base):
         nullable=False
     )
 
+    # -----------------------------------------------------
+    # Relationships
+    # -----------------------------------------------------
+
     project: Mapped["Project"] = relationship(
         "Project",
         back_populates="buildings"
@@ -296,9 +316,9 @@ class Building(Base):
     )
 
 
-# -------------------------
+# =========================================================
 # UNIT
-# -------------------------
+# =========================================================
 
 class Unit(Base):
     __tablename__ = "units"
@@ -334,17 +354,31 @@ class Unit(Base):
         nullable=False
     )
 
+    # -----------------------------------------------------
+    # Relationships
+    # -----------------------------------------------------
+
     building: Mapped["Building"] = relationship(
         "Building",
         back_populates="units"
     )
 
-    # A unit can have one booking in this MVP
-    booking: Mapped["Booking | None"] = relationship(
+    # IMPORTANT:
+    # A unit can have multiple historical bookings.
+    #
+    # Example:
+    # Booking #1 -> CANCELLED
+    # Booking #2 -> CONFIRMED
+    #
+    # Only one CONFIRMED booking is allowed at a time.
+    bookings: Mapped[list["Booking"]] = relationship(
         "Booking",
-        back_populates="unit",
-        uselist=False
+        back_populates="unit"
     )
+
+    # -----------------------------------------------------
+    # Constraints
+    # -----------------------------------------------------
 
     __table_args__ = (
         UniqueConstraint(
@@ -355,9 +389,9 @@ class Unit(Base):
     )
 
 
-# -------------------------
+# =========================================================
 # BOOKING
-# -------------------------
+# =========================================================
 
 class Booking(Base):
     __tablename__ = "bookings"
@@ -372,10 +406,20 @@ class Booking(Base):
         nullable=False
     )
 
+    # IMPORTANT:
+    # DO NOT use unique=True here.
+    #
+    # A unit can have historical bookings:
+    #
+    # Unit 4 -> CANCELLED
+    # Unit 4 -> CANCELLED
+    # Unit 4 -> CONFIRMED
+    #
+    # The database partial unique index will ensure that
+    # only ONE CONFIRMED booking exists for a unit.
     unit_id: Mapped[int] = mapped_column(
         ForeignKey("units.id"),
-        nullable=False,
-        unique=True
+        nullable=False
     )
 
     booked_by: Mapped[int] = mapped_column(
@@ -394,6 +438,10 @@ class Booking(Base):
         nullable=False
     )
 
+    # -----------------------------------------------------
+    # Relationships
+    # -----------------------------------------------------
+
     lead: Mapped["Lead"] = relationship(
         "Lead",
         back_populates="bookings"
@@ -401,7 +449,7 @@ class Booking(Base):
 
     unit: Mapped["Unit"] = relationship(
         "Unit",
-        back_populates="booking"
+        back_populates="bookings"
     )
 
     booked_by_user: Mapped["User"] = relationship(
