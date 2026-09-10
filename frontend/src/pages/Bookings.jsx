@@ -583,7 +583,7 @@ export default function Bookings() {
         >
           <Plus className="h-4 w-4" />
 
-          New Booking
+          New Booking CRM
         </button>
       </div>
 
@@ -858,7 +858,7 @@ export default function Bookings() {
             setBookingModalOpen(false);
           }
         }}
-        title="Create New Booking"
+        title="Create New Booking CRM"
         description="Connect a lead with a property unit."
         size="lg"
       >
