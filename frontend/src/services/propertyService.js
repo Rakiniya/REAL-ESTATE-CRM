@@ -79,22 +79,14 @@ const propertyService = {
     return response.data;
   },
 
-  async getAllUnits(params = {}) {
-    const response = await api.get(
-      "/properties/units",
-      { params }
-    );
+  
+  async getUnits(buildingId) {
+  const response = await api.get(
+    `/properties/buildings/${buildingId}/units`
+  );
 
-    return response.data;
-  },
-
-  async getUnit(unitId) {
-    const response = await api.get(
-      `/properties/units/${unitId}`
-    );
-
-    return response.data;
-  },
+  return response.data;
+},
 
   async updateUnit(unitId, data) {
     const response = await api.put(
