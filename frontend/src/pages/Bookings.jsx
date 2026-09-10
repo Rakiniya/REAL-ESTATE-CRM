@@ -276,105 +276,107 @@ export default function Bookings() {
   // =========================================================
 
   const handleBuildingChange = async (event) => {
-    const buildingId = event.target.value;
+  const buildingId = event.target.value;
 
-    latestBuildingRequestRef.current = buildingId;
+  latestBuildingRequestRef.current = buildingId;
 
-    setSelectedBuildingId(buildingId);
+  setSelectedBuildingId(buildingId);
 
-    setForm((previous) => ({
-      ...previous,
-      unit_id: "",
-    }));
+  setForm((previous) => ({
+    ...previous,
+    unit_id: "",
+  }));
 
-    setErrors((previous) => ({
-      ...previous,
-      building_id: "",
-      unit_id: "",
-    }));
+  setErrors((previous) => ({
+    ...previous,
+    building_id: "",
+    unit_id: "",
+  }));
 
-    if (!buildingId) {
-      setUnits([]);
+  if (!buildingId) {
+    setUnits([]);
+    return;
+  }
+
+  try {
+    setLoadingFormData(true);
+
+    const buildingUnits =
+      await propertyService.getUnits(buildingId);
+
+    console.log("========== BOOKING DEBUG ==========");
+    console.log("SELECTED BUILDING:", buildingId);
+    console.log("UNITS RETURNED FROM API:", buildingUnits);
+    console.log("====================================");
+
+    // Ignore response if user has already selected another building.
+    if (latestBuildingRequestRef.current !== buildingId) {
       return;
     }
 
-    try {
-      setLoadingFormData(true);
+    // IMPORTANT:
+    // Store ALL units returned by the API.
+    // Do NOT filter by AVAILABLE or BOOKED.
+    setUnits(buildingUnits);
+  } catch (error) {
+    if (latestBuildingRequestRef.current === buildingId) {
+      toast.error(
+        error.response?.data?.detail ||
+          "Unable to load units."
+      );
 
-      const buildingUnits =
-        await propertyService.getUnits(buildingId);
-
-      // Stale response — user already switched buildings again.
-      if (latestBuildingRequestRef.current !== buildingId) {
-        return;
-      }
-
-      setUnits(buildingUnits);
-    } catch (error) {
-      if (latestBuildingRequestRef.current === buildingId) {
-        toast.error(
-          error.response?.data?.detail ||
-            "Unable to load units."
-        );
-
-        setUnits([]);
-      }
-    } finally {
-      if (latestBuildingRequestRef.current === buildingId) {
-        setLoadingFormData(false);
-      }
+      setUnits([]);
     }
-  };
+  } finally {
+    if (latestBuildingRequestRef.current === buildingId) {
+      setLoadingFormData(false);
+    }
+  }
+};
 
   // =========================================================
   // VALIDATE BOOKING
   // =========================================================
 
-  const validateBooking = () => {
-    const newErrors = {};
+ const validateBooking = () => {
+  const newErrors = {};
 
-    if (!form.lead_id) {
-      newErrors.lead_id =
-        "Please select a customer or lead.";
-    }
+  if (!form.lead_id) {
+    newErrors.lead_id =
+      "Please select a customer or lead.";
+  }
 
-    if (!selectedProjectId) {
-      newErrors.project_id =
-        "Please select a project.";
-    }
+  if (!selectedProjectId) {
+    newErrors.project_id =
+      "Please select a project.";
+  }
 
-    if (!selectedBuildingId) {
-      newErrors.building_id =
-        "Please select a building.";
-    }
+  if (!selectedBuildingId) {
+    newErrors.building_id =
+      "Please select a building.";
+  }
 
-    if (!form.unit_id) {
+  if (!form.unit_id) {
+    newErrors.unit_id =
+      "Please select a unit.";
+  }
+
+  if (form.unit_id) {
+    const selected = units.find(
+      (unit) =>
+        String(unit.id) === String(form.unit_id)
+    );
+
+    if (!selected) {
       newErrors.unit_id =
-        "Please select an available unit.";
+        "The selected unit could not be found.";
     }
+  }
 
-    if (form.unit_id) {
-      const selected = units.find(
-        (unit) =>
-          String(unit.id) === String(form.unit_id)
-      );
+  setErrors(newErrors);
 
-      if (!selected) {
-        newErrors.unit_id =
-          "The selected unit is no longer available.";
-      } else if (
-        String(selected.status).toUpperCase() !==
-        "AVAILABLE"
-      ) {
-        newErrors.unit_id =
-          "This unit is no longer available.";
-      }
-    }
-
-    setErrors(newErrors);
-
-    return Object.keys(newErrors).length === 0;
-  };
+  return Object.keys(newErrors).length === 0;
+};
 
   // =========================================================
   // CREATE BOOKING
@@ -420,9 +422,10 @@ export default function Bookings() {
       // =====================================================
 
       if (error.response?.status === 409) {
-        toast.error(
-          "This unit has already been booked. Please select another unit."
-        );
+        setErrors({
+  unit_id:
+    "This unit was just booked by another user. Please select another unit.",
+});
 
         setErrors({
           unit_id:
@@ -1031,6 +1034,10 @@ export default function Bookings() {
                 UNIT
             ================================================= */}
 
+{/* =================================================
+    UNIT
+================================================= */}
+
 <div>
   <label className="mb-1.5 block text-sm font-medium text-slate-700">
     Property Unit
@@ -1040,81 +1047,51 @@ export default function Bookings() {
     </span>
   </label>
 
-  {!selectedBuildingId ? (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-      Select a building first
-    </div>
-  ) : units.length === 0 ? (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-      No units found in this building.
-    </div>
-  ) : (
-    <div className="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
-      {units.map((unit) => {
-        const isBooked =
-          String(unit.status).toUpperCase() === "BOOKED";
+  <select
+    value={form.unit_id}
+    onChange={(event) => {
+      setForm((previous) => ({
+        ...previous,
+        unit_id: event.target.value,
+      }));
 
-        const isSelected =
-          String(form.unit_id) === String(unit.id);
+      setErrors((previous) => ({
+        ...previous,
+        unit_id: "",
+      }));
+    }}
+    disabled={
+      !selectedBuildingId ||
+      loadingFormData
+    }
+    className={`input disabled:cursor-not-allowed disabled:bg-slate-50 ${
+      errors.unit_id
+        ? "border-red-300 focus:border-red-500 focus:ring-red-100"
+        : ""
+    }`}
+  >
+    <option value="">
+      {loadingFormData
+        ? "Loading units..."
+        : !selectedBuildingId
+        ? "Select a building first"
+        : units.length === 0
+        ? "No units found"
+        : "Select a unit"}
+    </option>
 
-        return (
-          <button
-            key={unit.id}
-            type="button"
-            disabled={isBooked}
-            onClick={() => {
-              if (isBooked) return;
-
-              setForm((previous) => ({
-                ...previous,
-                unit_id: String(unit.id),
-              }));
-
-              setErrors((previous) => ({
-                ...previous,
-                unit_id: "",
-              }));
-            }}
-            className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition ${
-              isBooked
-                ? "cursor-not-allowed border-red-100 bg-red-50/60 opacity-70"
-                : isSelected
-                ? "border-primary-500 bg-primary-50 ring-1 ring-primary-500"
-                : "border-slate-200 bg-white hover:border-primary-300 hover:bg-primary-50"
-            }`}
-          >
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-900">
-                {unit.unit_number}
-              </p>
-
-              <p className="mt-1 text-xs text-slate-500">
-                {unit.type} · {formatPrice(unit.price)}
-              </p>
-            </div>
-
-            <span
-              className={`ml-3 shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                isBooked
-                  ? "bg-red-100 text-red-700"
-                  : "bg-emerald-100 text-emerald-700"
-              }`}
-            >
-              {isBooked ? "BOOKED" : "AVAILABLE"}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  )}
+    {units.map((unit) => (
+      <option
+        key={unit.id}
+        value={unit.id}
+      >
+        {unit.unit_number} — {unit.type} —{" "}
+        {formatPrice(unit.price)}
+      </option>
+    ))}
+  </select>
 
   <FieldError message={errors.unit_id} />
-
-  {selectedBuildingId && units.length > 0 && (
-    <p className="mt-2 text-xs text-slate-500">
-      BOOKED units are visible but cannot be selected.
-    </p>
-  )}
 </div>
 
             {/* =================================================
