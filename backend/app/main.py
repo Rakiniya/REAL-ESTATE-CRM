@@ -59,6 +59,8 @@ app.add_middleware(
 
         # Current Vercel production URL
         "https://real-estate-n2bte5b14-rakiniya.vercel.app",
+
+         "https://real-estate-crm-9uy4.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
