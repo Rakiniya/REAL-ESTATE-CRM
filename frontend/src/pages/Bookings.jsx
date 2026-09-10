@@ -858,7 +858,7 @@ export default function Bookings() {
             setBookingModalOpen(false);
           }
         }}
-        title="Create New Booking CRM"
+        title="Create"
         description="Connect a lead with a property unit."
         size="lg"
       >
@@ -1080,7 +1080,7 @@ export default function Bookings() {
         : "Select a unit"}
     </option>
 
-    {units.map((unit) => (
+    {(Array.isArray(units) ? units : []).map((unit) => (
       <option
         key={unit.id}
         value={unit.id}
