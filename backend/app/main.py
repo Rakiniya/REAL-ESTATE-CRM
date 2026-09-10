@@ -1,12 +1,8 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base
-from app.routers.leads import router as leads_router
-from app.routers.properties import router as properties_router
-from app.routers.bookings import router as bookings_router
-from app.routers.dashboard import router as dashboard_router
-from fastapi.middleware.cors import CORSMiddleware
-from app.routers.users import router as users_router
+
 from app.models.models import (
     User,
     Lead,
@@ -22,7 +18,16 @@ from app.models.models import (
 )
 
 from app.routers.auth import router as auth_router
+from app.routers.leads import router as leads_router
+from app.routers.properties import router as properties_router
+from app.routers.bookings import router as bookings_router
+from app.routers.dashboard import router as dashboard_router
+from app.routers.users import router as users_router
 
+
+# =========================================================
+# FASTAPI APPLICATION
+# =========================================================
 
 app = FastAPI(
     title="Real Estate CRM API",
@@ -31,11 +36,40 @@ app = FastAPI(
 )
 
 
-# Create database tables
+# =========================================================
+# DATABASE TABLES
+# =========================================================
+
 Base.metadata.create_all(bind=engine)
 
 
-# Authentication routes
+# =========================================================
+# CORS
+# =========================================================
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        # Local development
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+
+        # Previous Vercel production URL
+        "https://real-estate-crm-omega-brown.vercel.app",
+
+        # Current Vercel production URL
+        "https://real-estate-n2bte5b14-rakiniya.vercel.app",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# =========================================================
+# API ROUTES
+# =========================================================
+
 app.include_router(auth_router)
 app.include_router(leads_router)
 app.include_router(properties_router)
@@ -44,12 +78,20 @@ app.include_router(dashboard_router)
 app.include_router(users_router)
 
 
+# =========================================================
+# ROOT
+# =========================================================
+
 @app.get("/")
 def root():
     return {
         "message": "Real Estate CRM API is running"
     }
 
+
+# =========================================================
+# HEALTH CHECK
+# =========================================================
 
 @app.get("/health")
 def health_check():
@@ -66,16 +108,3 @@ def health_check():
             "database": "disconnected",
             "error": str(e)
         }
-
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "https://real-estate-crm-omega-brown.vercel.app",
-],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)    
