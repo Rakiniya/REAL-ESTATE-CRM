@@ -18,6 +18,11 @@ import leadService from "../services/leadService";
 import propertyService from "../services/propertyService";
 import { useAuth } from "../context/AuthContext";
 
+
+// =========================================================
+// HELPERS
+// =========================================================
+
 function formatPrice(price) {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -36,16 +41,27 @@ function formatDate(date) {
   });
 }
 
+
+// =========================================================
+// LOADING STATE
+// =========================================================
+
 function LoadingState() {
   return (
     <div className="flex items-center justify-center py-16">
       <RefreshCw className="mr-2 h-5 w-5 animate-spin text-primary-600" />
+
       <span className="text-sm text-slate-500">
         Loading bookings...
       </span>
     </div>
   );
 }
+
+
+// =========================================================
+// EMPTY STATE
+// =========================================================
 
 function EmptyState() {
   return (
@@ -59,11 +75,16 @@ function EmptyState() {
       </h3>
 
       <p className="mt-1 max-w-md text-sm text-slate-500">
-        Confirmed property bookings will appear here.
+        Confirmed and cancelled property bookings will appear here.
       </p>
     </div>
   );
 }
+
+
+// =========================================================
+// FIELD ERROR
+// =========================================================
 
 function FieldError({ message }) {
   if (!message) return null;
@@ -74,6 +95,11 @@ function FieldError({ message }) {
     </p>
   );
 }
+
+
+// =========================================================
+// BOOKINGS PAGE
+// =========================================================
 
 export default function Bookings() {
   const { user } = useAuth();
@@ -107,6 +133,11 @@ export default function Bookings() {
 
   const [errors, setErrors] = useState({});
 
+
+  // =========================================================
+  // LOAD BOOKINGS
+  // =========================================================
+
   const loadBookings = async () => {
     try {
       setLoading(true);
@@ -124,6 +155,14 @@ export default function Bookings() {
     }
   };
 
+
+  // =========================================================
+  // LOAD BOOKING FORM DATA
+  // IMPORTANT:
+  // Load ALL units, not only AVAILABLE units.
+  // This allows BOOKED units to remain visible.
+  // =========================================================
+
   const loadFormData = async () => {
     try {
       setLoadingFormData(true);
@@ -132,9 +171,7 @@ export default function Bookings() {
         await Promise.all([
           leadService.getLeads(),
           propertyService.getProjects(),
-          propertyService.getAllUnits({
-            status_filter: "AVAILABLE",
-          }),
+          propertyService.getAllUnits(),
         ]);
 
       setLeads(leadData);
@@ -150,9 +187,19 @@ export default function Bookings() {
     }
   };
 
+
+  // =========================================================
+  // INITIAL LOAD
+  // =========================================================
+
   useEffect(() => {
     loadBookings();
   }, []);
+
+
+  // =========================================================
+  // OPEN BOOKING MODAL
+  // =========================================================
 
   const openBookingModal = async () => {
     setForm({
@@ -170,6 +217,11 @@ export default function Bookings() {
 
     await loadFormData();
   };
+
+
+  // =========================================================
+  // PROJECT CHANGE
+  // =========================================================
 
   const handleProjectChange = async (event) => {
     const projectId = event.target.value;
@@ -210,6 +262,14 @@ export default function Bookings() {
     }
   };
 
+
+  // =========================================================
+  // BUILDING CHANGE
+  // IMPORTANT:
+  // Load ALL units for the building.
+  // Do NOT filter BOOKED units out.
+  // =========================================================
+
   const handleBuildingChange = async (event) => {
     const buildingId = event.target.value;
 
@@ -227,6 +287,7 @@ export default function Bookings() {
     }));
 
     if (!buildingId) {
+      setUnits([]);
       return;
     }
 
@@ -234,11 +295,8 @@ export default function Bookings() {
       const data =
         await propertyService.getUnits(buildingId);
 
-      setUnits(
-        data.filter(
-          (unit) => unit.status === "AVAILABLE"
-        )
-      );
+      // Keep AVAILABLE and BOOKED units visible.
+      setUnits(data);
     } catch (error) {
       toast.error(
         error.response?.data?.detail ||
@@ -248,6 +306,11 @@ export default function Bookings() {
       setUnits([]);
     }
   };
+
+
+  // =========================================================
+  // VALIDATE BOOKING
+  // =========================================================
 
   const validateBooking = () => {
     const newErrors = {};
@@ -292,6 +355,11 @@ export default function Bookings() {
     return Object.keys(newErrors).length === 0;
   };
 
+
+  // =========================================================
+  // CREATE BOOKING
+  // =========================================================
+
   const handleCreateBooking = async (event) => {
     event.preventDefault();
 
@@ -326,6 +394,11 @@ export default function Bookings() {
 
       setErrors({});
     } catch (error) {
+      // =====================================================
+      // BOOKING CONFLICT
+      // Backend returns 409 when another user booked it.
+      // =====================================================
+
       if (error.response?.status === 409) {
         toast.error(
           "This unit has already been booked. Please select another unit."
@@ -336,6 +409,7 @@ export default function Bookings() {
             "This unit was just booked by another user. Please select another unit.",
         });
 
+        // Refresh units so the latest BOOKED status is visible.
         await loadFormData();
       } else {
         toast.error(
@@ -348,10 +422,20 @@ export default function Bookings() {
     }
   };
 
+
+  // =========================================================
+  // OPEN CANCEL MODAL
+  // =========================================================
+
   const openCancelModal = (booking) => {
     setSelectedBooking(booking);
     setCancelModalOpen(true);
   };
+
+
+  // =========================================================
+  // CANCEL BOOKING
+  // =========================================================
 
   const handleCancelBooking = async () => {
     if (!selectedBooking) return;
@@ -381,6 +465,11 @@ export default function Bookings() {
     }
   };
 
+
+  // =========================================================
+  // FILTER BOOKINGS
+  // =========================================================
+
   const filteredBookings = useMemo(() => {
     const query = search.trim().toLowerCase();
 
@@ -399,6 +488,11 @@ export default function Bookings() {
     });
   }, [bookings, search, statusFilter]);
 
+
+  // =========================================================
+  // KPI COUNTS
+  // =========================================================
+
   const confirmedCount = bookings.filter(
     (booking) => booking.status === "CONFIRMED"
   ).length;
@@ -407,18 +501,33 @@ export default function Bookings() {
     (booking) => booking.status === "CANCELLED"
   ).length;
 
+
+  // =========================================================
+  // SELECTED UNIT
+  // =========================================================
+
   const selectedUnit = units.find(
     (unit) =>
       String(unit.id) === String(form.unit_id)
   );
 
+
+  // =========================================================
+  // RENDER
+  // =========================================================
+
   return (
     <div className="page-container">
-      {/* Header */}
+
+      {/* ===================================================
+          HEADER
+      =================================================== */}
+
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <CalendarDays className="h-4 w-4" />
+
             <span>Sales Operations</span>
           </div>
 
@@ -437,12 +546,19 @@ export default function Bookings() {
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700"
         >
           <Plus className="h-4 w-4" />
+
           New Booking
         </button>
       </div>
 
-      {/* KPI cards */}
+
+      {/* ===================================================
+          KPI CARDS
+      =================================================== */}
+
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
+        {/* Total */}
         <div className="card p-5">
           <div className="flex items-center justify-between">
             <div>
@@ -461,6 +577,8 @@ export default function Bookings() {
           </div>
         </div>
 
+
+        {/* Confirmed */}
         <div className="card p-5">
           <div className="flex items-center justify-between">
             <div>
@@ -479,6 +597,8 @@ export default function Bookings() {
           </div>
         </div>
 
+
+        {/* Cancelled */}
         <div className="card p-5">
           <div className="flex items-center justify-between">
             <div>
@@ -496,12 +616,20 @@ export default function Bookings() {
             </div>
           </div>
         </div>
+
       </div>
 
-      {/* Booking table */}
+
+      {/* ===================================================
+          BOOKING TABLE
+      =================================================== */}
+
       <div className="card overflow-hidden">
+
         <div className="border-b border-slate-100 p-5">
+
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+
             <div>
               <h2 className="font-semibold text-slate-900">
                 Booking History
@@ -512,7 +640,10 @@ export default function Bookings() {
               </p>
             </div>
 
+
             <div className="grid gap-3 sm:grid-cols-[1fr_180px]">
+
+              {/* Search */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
@@ -526,6 +657,8 @@ export default function Bookings() {
                 />
               </div>
 
+
+              {/* Status filter */}
               <select
                 value={statusFilter}
                 onChange={(event) =>
@@ -545,9 +678,11 @@ export default function Bookings() {
                   Cancelled
                 </option>
               </select>
+
             </div>
           </div>
         </div>
+
 
         {loading ? (
           <LoadingState />
@@ -555,9 +690,12 @@ export default function Bookings() {
           <EmptyState />
         ) : (
           <div className="overflow-x-auto">
+
             <table className="min-w-full">
+
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/70 text-left">
+
                   <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Booking
                   </th>
@@ -581,23 +719,31 @@ export default function Bookings() {
                   <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Action
                   </th>
+
                 </tr>
               </thead>
 
+
               <tbody className="divide-y divide-slate-100">
+
                 {filteredBookings.map((booking) => (
                   <tr
                     key={booking.id}
                     className="transition hover:bg-slate-50/60"
                   >
+
+                    {/* Booking ID */}
                     <td className="whitespace-nowrap px-5 py-4">
                       <p className="text-sm font-semibold text-slate-900">
                         #{booking.id}
                       </p>
                     </td>
 
+
+                    {/* Lead */}
                     <td className="whitespace-nowrap px-5 py-4">
                       <div className="flex items-center gap-2">
+
                         <div className="rounded-lg bg-slate-100 p-2">
                           <UserRound className="h-4 w-4 text-slate-500" />
                         </div>
@@ -605,11 +751,15 @@ export default function Bookings() {
                         <span className="text-sm font-medium text-slate-700">
                           Lead #{booking.lead_id}
                         </span>
+
                       </div>
                     </td>
 
+
+                    {/* Unit */}
                     <td className="whitespace-nowrap px-5 py-4">
                       <div className="flex items-center gap-2">
+
                         <div className="rounded-lg bg-primary-50 p-2">
                           <Home className="h-4 w-4 text-primary-600" />
                         </div>
@@ -617,15 +767,20 @@ export default function Bookings() {
                         <span className="text-sm font-medium text-slate-700">
                           Unit #{booking.unit_id}
                         </span>
+
                       </div>
                     </td>
 
+
+                    {/* Date */}
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
                       {formatDate(
                         booking.booking_date
                       )}
                     </td>
 
+
+                    {/* Status */}
                     <td className="whitespace-nowrap px-5 py-4">
                       <Badge
                         value={booking.status}
@@ -633,7 +788,10 @@ export default function Bookings() {
                       />
                     </td>
 
+
+                    {/* Action */}
                     <td className="whitespace-nowrap px-5 py-4 text-right">
+
                       {booking.status ===
                         "CONFIRMED" && (
                         <button
@@ -655,16 +813,26 @@ export default function Bookings() {
                           Cancelled
                         </span>
                       )}
+
                     </td>
+
                   </tr>
                 ))}
+
               </tbody>
+
             </table>
+
           </div>
         )}
+
       </div>
 
-      {/* Create Booking Modal */}
+
+      {/* ===================================================
+          CREATE BOOKING MODAL
+      =================================================== */}
+
       <Modal
         open={bookingModalOpen}
         onClose={() => {
@@ -673,29 +841,39 @@ export default function Bookings() {
           }
         }}
         title="Create New Booking"
-        description="Connect a lead with an available property unit."
+        description="Connect a lead with a property unit."
         size="lg"
       >
+
         {loadingFormData ? (
           <LoadingState />
         ) : (
+
           <form
             onSubmit={handleCreateBooking}
             className="space-y-6"
             noValidate
           >
-            {/* Lead */}
+
+            {/* =================================================
+                LEAD
+            ================================================= */}
+
             <div>
+
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Customer / Lead
+
                 <span className="ml-1 text-red-500">
                   *
                 </span>
               </label>
 
+
               <select
                 value={form.lead_id}
                 onChange={(event) => {
+
                   setForm((previous) => ({
                     ...previous,
                     lead_id: event.target.value,
@@ -705,6 +883,7 @@ export default function Bookings() {
                     ...previous,
                     lead_id: "",
                   }));
+
                 }}
                 className={`input ${
                   errors.lead_id
@@ -712,6 +891,7 @@ export default function Bookings() {
                     : ""
                 }`}
               >
+
                 <option value="">
                   Select a lead
                 </option>
@@ -724,27 +904,38 @@ export default function Bookings() {
                     {lead.name} — Lead #{lead.id}
                   </option>
                 ))}
+
               </select>
+
 
               <FieldError
                 message={errors.lead_id}
               />
+
 
               {leads.length === 0 && (
                 <p className="mt-2 text-xs text-amber-600">
                   No leads are available for booking.
                 </p>
               )}
+
             </div>
 
-            {/* Project */}
+
+            {/* =================================================
+                PROJECT
+            ================================================= */}
+
             <div>
+
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Project
+
                 <span className="ml-1 text-red-500">
                   *
                 </span>
               </label>
+
 
               <select
                 value={selectedProjectId}
@@ -755,6 +946,7 @@ export default function Bookings() {
                     : ""
                 }`}
               >
+
                 <option value="">
                   Select a project
                 </option>
@@ -768,21 +960,31 @@ export default function Bookings() {
                     {project.location}
                   </option>
                 ))}
+
               </select>
+
 
               <FieldError
                 message={errors.project_id}
               />
+
             </div>
 
-            {/* Building */}
+
+            {/* =================================================
+                BUILDING
+            ================================================= */}
+
             <div>
+
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Building
+
                 <span className="ml-1 text-red-500">
                   *
                 </span>
               </label>
+
 
               <select
                 value={selectedBuildingId}
@@ -794,6 +996,7 @@ export default function Bookings() {
                     : ""
                 }`}
               >
+
                 <option value="">
                   {selectedProjectId
                     ? "Select a building"
@@ -808,34 +1011,69 @@ export default function Bookings() {
                     {building.name}
                   </option>
                 ))}
+
               </select>
+
 
               <FieldError
                 message={errors.building_id}
               />
+
             </div>
 
-            {/* Unit */}
+
+            {/* =================================================
+                UNIT
+            ================================================= */}
+
             <div>
+
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Available Unit
+                Property Unit
+
                 <span className="ml-1 text-red-500">
                   *
                 </span>
               </label>
 
+
               <select
                 value={form.unit_id}
                 onChange={(event) => {
+
+                  const unitId = event.target.value;
+
+                  const selected = units.find(
+                    (unit) =>
+                      String(unit.id) ===
+                      String(unitId)
+                  );
+
+                  // Safety check:
+                  // Never allow BOOKED unit to be selected.
+                  if (
+                    selected &&
+                    selected.status !== "AVAILABLE"
+                  ) {
+                    setErrors((previous) => ({
+                      ...previous,
+                      unit_id:
+                        "This unit is already booked. Please select another unit.",
+                    }));
+
+                    return;
+                  }
+
                   setForm((previous) => ({
                     ...previous,
-                    unit_id: event.target.value,
+                    unit_id: unitId,
                   }));
 
                   setErrors((previous) => ({
                     ...previous,
                     unit_id: "",
                   }));
+
                 }}
                 disabled={!selectedBuildingId}
                 className={`input disabled:cursor-not-allowed disabled:bg-slate-50 ${
@@ -844,42 +1082,68 @@ export default function Bookings() {
                     : ""
                 }`}
               >
+
                 <option value="">
                   {selectedBuildingId
                     ? "Select an available unit"
                     : "Select a building first"}
                 </option>
 
+
                 {units.map((unit) => (
                   <option
                     key={unit.id}
                     value={unit.id}
+                    disabled={
+                      unit.status !== "AVAILABLE"
+                    }
                   >
                     {unit.unit_number} —{" "}
                     {unit.type} —{" "}
-                    {formatPrice(unit.price)}
+                    {formatPrice(unit.price)} —{" "}
+                    {unit.status}
                   </option>
                 ))}
+
               </select>
+
 
               <FieldError
                 message={errors.unit_id}
               />
 
+
+              {/* Unit information */}
+              {selectedBuildingId &&
+                units.length > 0 && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Booked units are shown for visibility
+                    but cannot be selected.
+                  </p>
+                )}
+
+
               {selectedBuildingId &&
                 units.length === 0 && (
                   <p className="mt-2 text-xs text-amber-600">
-                    No available units in this
-                    building.
+                    No units found in this building.
                   </p>
                 )}
+
             </div>
 
-            {/* Selected unit preview */}
+
+            {/* =================================================
+                SELECTED UNIT PREVIEW
+            ================================================= */}
+
             {selectedUnit && (
               <div className="rounded-xl border border-primary-100 bg-primary-50 p-4">
+
                 <div className="flex items-center justify-between">
+
                   <div>
+
                     <p className="text-xs font-medium text-primary-600">
                       Selected Unit
                     </p>
@@ -891,9 +1155,12 @@ export default function Bookings() {
                     <p className="mt-1 text-xs text-slate-500">
                       {selectedUnit.type}
                     </p>
+
                   </div>
 
+
                   <div className="text-right">
+
                     <p className="text-xs text-slate-500">
                       Price
                     </p>
@@ -905,20 +1172,30 @@ export default function Bookings() {
                     </p>
 
                     <div className="mt-1">
+
                       <Badge
                         value={
                           selectedUnit.status
                         }
                         type="status"
                       />
+
                     </div>
+
                   </div>
+
                 </div>
+
               </div>
             )}
 
-            {/* Actions */}
+
+            {/* =================================================
+                ACTIONS
+            ================================================= */}
+
             <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
+
               <button
                 type="button"
                 onClick={() =>
@@ -930,12 +1207,14 @@ export default function Bookings() {
                 Cancel
               </button>
 
+
               <button
                 type="submit"
                 disabled={
                   saving ||
                   loadingFormData ||
-                  leads.length === 0
+                  leads.length === 0 ||
+                  !form.unit_id
                 }
                 className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -943,12 +1222,20 @@ export default function Bookings() {
                   ? "Creating..."
                   : "Confirm Booking"}
               </button>
+
             </div>
+
           </form>
+
         )}
+
       </Modal>
 
-      {/* Cancel Confirmation */}
+
+      {/* ===================================================
+          CANCEL CONFIRMATION
+      =================================================== */}
+
       <Modal
         open={cancelModalOpen}
         onClose={() => {
@@ -960,27 +1247,36 @@ export default function Bookings() {
         description="This will release the unit and make it available again."
         size="sm"
       >
+
         <div className="space-y-5">
+
           <div className="rounded-xl bg-red-50 p-4">
+
             <div className="flex gap-3">
+
               <XCircle className="h-5 w-5 shrink-0 text-red-600" />
 
               <div>
+
                 <p className="text-sm font-semibold text-red-800">
                   Cancel this booking?
                 </p>
 
                 <p className="mt-1 text-xs leading-5 text-red-700">
-                  Booking #
-                  {selectedBooking?.id} will be
-                  cancelled and its unit will
-                  become available again.
+                  Booking #{selectedBooking?.id} will be
+                  cancelled and its unit will become
+                  available again.
                 </p>
+
               </div>
+
             </div>
+
           </div>
 
+
           <div className="flex justify-end gap-3">
+
             <button
               type="button"
               onClick={() =>
@@ -992,6 +1288,7 @@ export default function Bookings() {
               Keep Booking
             </button>
 
+
             <button
               type="button"
               onClick={handleCancelBooking}
@@ -1002,9 +1299,13 @@ export default function Bookings() {
                 ? "Cancelling..."
                 : "Cancel Booking"}
             </button>
+
           </div>
+
         </div>
+
       </Modal>
+
     </div>
   );
 }
