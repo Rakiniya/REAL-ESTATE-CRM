@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarDays,
   CheckCircle2,
@@ -17,7 +17,6 @@ import bookingService from "../services/bookingService";
 import leadService from "../services/leadService";
 import propertyService from "../services/propertyService";
 import { useAuth } from "../context/AuthContext";
-
 
 // =========================================================
 // HELPERS
@@ -41,7 +40,6 @@ function formatDate(date) {
   });
 }
 
-
 // =========================================================
 // LOADING STATE
 // =========================================================
@@ -57,7 +55,6 @@ function LoadingState() {
     </div>
   );
 }
-
 
 // =========================================================
 // EMPTY STATE
@@ -81,7 +78,6 @@ function EmptyState() {
   );
 }
 
-
 // =========================================================
 // FIELD ERROR
 // =========================================================
@@ -95,7 +91,6 @@ function FieldError({ message }) {
     </p>
   );
 }
-
 
 // =========================================================
 // BOOKINGS PAGE
@@ -133,6 +128,9 @@ export default function Bookings() {
 
   const [errors, setErrors] = useState({});
 
+  // Tracks the most recently requested buildingId so a slow,
+  // outdated getUnits() response can never overwrite a newer one.
+  const latestBuildingRequestRef = useRef(null);
 
   // =========================================================
   // LOAD BOOKINGS
@@ -155,28 +153,21 @@ export default function Bookings() {
     }
   };
 
-
   // =========================================================
   // LOAD BOOKING FORM DATA
-  // IMPORTANT:
-  // Load ALL units, not only AVAILABLE units.
-  // This allows BOOKED units to remain visible.
   // =========================================================
 
   const loadFormData = async () => {
     try {
       setLoadingFormData(true);
 
-      const [leadData, projectData, unitData] =
-        await Promise.all([
-          leadService.getLeads(),
-          propertyService.getProjects(),
-          propertyService.getAllUnits(),
-        ]);
+      const [leadData, projectData] = await Promise.all([
+        leadService.getLeads(),
+        propertyService.getProjects(),
+      ]);
 
       setLeads(leadData);
       setProjects(projectData);
-      setUnits(unitData);
     } catch (error) {
       toast.error(
         error.response?.data?.detail ||
@@ -187,7 +178,6 @@ export default function Bookings() {
     }
   };
 
-
   // =========================================================
   // INITIAL LOAD
   // =========================================================
@@ -195,7 +185,6 @@ export default function Bookings() {
   useEffect(() => {
     loadBookings();
   }, []);
-
 
   // =========================================================
   // OPEN BOOKING MODAL
@@ -212,12 +201,14 @@ export default function Bookings() {
     setSelectedProjectId("");
     setSelectedBuildingId("");
     setBuildings([]);
+    setUnits([]);
+
+    latestBuildingRequestRef.current = null;
 
     setBookingModalOpen(true);
 
     await loadFormData();
   };
-
 
   // =========================================================
   // PROJECT CHANGE
@@ -229,6 +220,10 @@ export default function Bookings() {
     setSelectedProjectId(projectId);
 
     setSelectedBuildingId("");
+
+    setUnits([]);
+
+    latestBuildingRequestRef.current = null;
 
     setForm((previous) => ({
       ...previous,
@@ -248,6 +243,8 @@ export default function Bookings() {
     }
 
     try {
+      setLoadingFormData(true);
+
       const data =
         await propertyService.getBuildings(projectId);
 
@@ -259,19 +256,29 @@ export default function Bookings() {
       );
 
       setBuildings([]);
+    } finally {
+      setLoadingFormData(false);
     }
   };
 
-
   // =========================================================
   // BUILDING CHANGE
-  // IMPORTANT:
-  // Load ALL units for the building.
-  // Do NOT filter BOOKED units out.
+  //
+  // Uses propertyService.getUnits(buildingId), which returns
+  // ALL units for that building — AVAILABLE and BOOKED.
+  //
+  // BOOKED units are displayed but disabled in the dropdown
+  // (see the <select> render below).
+  //
+  // A ref-based guard drops any response that is no longer
+  // for the currently selected building (handles rapid
+  // building switching without race conditions).
   // =========================================================
 
   const handleBuildingChange = async (event) => {
     const buildingId = event.target.value;
+
+    latestBuildingRequestRef.current = buildingId;
 
     setSelectedBuildingId(buildingId);
 
@@ -292,21 +299,32 @@ export default function Bookings() {
     }
 
     try {
-      const data =
+      setLoadingFormData(true);
+
+      const buildingUnits =
         await propertyService.getUnits(buildingId);
 
-      // Keep AVAILABLE and BOOKED units visible.
-      setUnits(data);
-    } catch (error) {
-      toast.error(
-        error.response?.data?.detail ||
-          "Unable to load units."
-      );
+      // Stale response — user already switched buildings again.
+      if (latestBuildingRequestRef.current !== buildingId) {
+        return;
+      }
 
-      setUnits([]);
+      setUnits(buildingUnits);
+    } catch (error) {
+      if (latestBuildingRequestRef.current === buildingId) {
+        toast.error(
+          error.response?.data?.detail ||
+            "Unable to load units."
+        );
+
+        setUnits([]);
+      }
+    } finally {
+      if (latestBuildingRequestRef.current === buildingId) {
+        setLoadingFormData(false);
+      }
     }
   };
-
 
   // =========================================================
   // VALIDATE BOOKING
@@ -344,7 +362,10 @@ export default function Bookings() {
       if (!selected) {
         newErrors.unit_id =
           "The selected unit is no longer available.";
-      } else if (selected.status !== "AVAILABLE") {
+      } else if (
+        String(selected.status).toUpperCase() !==
+        "AVAILABLE"
+      ) {
         newErrors.unit_id =
           "This unit is no longer available.";
       }
@@ -354,7 +375,6 @@ export default function Bookings() {
 
     return Object.keys(newErrors).length === 0;
   };
-
 
   // =========================================================
   // CREATE BOOKING
@@ -409,8 +429,27 @@ export default function Bookings() {
             "This unit was just booked by another user. Please select another unit.",
         });
 
-        // Refresh units so the latest BOOKED status is visible.
-        await loadFormData();
+        // Reload the current building's units (same source as
+        // the initial load) so the latest BOOKED status shows up.
+        if (selectedBuildingId) {
+          try {
+            const buildingUnits =
+              await propertyService.getUnits(
+                selectedBuildingId
+              );
+
+            if (
+              latestBuildingRequestRef.current ===
+              selectedBuildingId
+            ) {
+              setUnits(buildingUnits);
+            }
+          } catch (refreshError) {
+            toast.error(
+              "Unable to refresh unit list. Please reselect the building."
+            );
+          }
+        }
       } else {
         toast.error(
           error.response?.data?.detail ||
@@ -422,7 +461,6 @@ export default function Bookings() {
     }
   };
 
-
   // =========================================================
   // OPEN CANCEL MODAL
   // =========================================================
@@ -431,7 +469,6 @@ export default function Bookings() {
     setSelectedBooking(booking);
     setCancelModalOpen(true);
   };
-
 
   // =========================================================
   // CANCEL BOOKING
@@ -465,7 +502,6 @@ export default function Bookings() {
     }
   };
 
-
   // =========================================================
   // FILTER BOOKINGS
   // =========================================================
@@ -488,7 +524,6 @@ export default function Bookings() {
     });
   }, [bookings, search, statusFilter]);
 
-
   // =========================================================
   // KPI COUNTS
   // =========================================================
@@ -501,7 +536,6 @@ export default function Bookings() {
     (booking) => booking.status === "CANCELLED"
   ).length;
 
-
   // =========================================================
   // SELECTED UNIT
   // =========================================================
@@ -510,7 +544,6 @@ export default function Bookings() {
     (unit) =>
       String(unit.id) === String(form.unit_id)
   );
-
 
   // =========================================================
   // RENDER
@@ -551,7 +584,6 @@ export default function Bookings() {
         </button>
       </div>
 
-
       {/* ===================================================
           KPI CARDS
       =================================================== */}
@@ -577,7 +609,6 @@ export default function Bookings() {
           </div>
         </div>
 
-
         {/* Confirmed */}
         <div className="card p-5">
           <div className="flex items-center justify-between">
@@ -597,7 +628,6 @@ export default function Bookings() {
           </div>
         </div>
 
-
         {/* Cancelled */}
         <div className="card p-5">
           <div className="flex items-center justify-between">
@@ -616,9 +646,7 @@ export default function Bookings() {
             </div>
           </div>
         </div>
-
       </div>
-
 
       {/* ===================================================
           BOOKING TABLE
@@ -640,7 +668,6 @@ export default function Bookings() {
               </p>
             </div>
 
-
             <div className="grid gap-3 sm:grid-cols-[1fr_180px]">
 
               {/* Search */}
@@ -656,7 +683,6 @@ export default function Bookings() {
                   className="input pl-9"
                 />
               </div>
-
 
               {/* Status filter */}
               <select
@@ -678,11 +704,9 @@ export default function Bookings() {
                   Cancelled
                 </option>
               </select>
-
             </div>
           </div>
         </div>
-
 
         {loading ? (
           <LoadingState />
@@ -723,7 +747,6 @@ export default function Bookings() {
                 </tr>
               </thead>
 
-
               <tbody className="divide-y divide-slate-100">
 
                 {filteredBookings.map((booking) => (
@@ -738,7 +761,6 @@ export default function Bookings() {
                         #{booking.id}
                       </p>
                     </td>
-
 
                     {/* Lead */}
                     <td className="whitespace-nowrap px-5 py-4">
@@ -755,7 +777,6 @@ export default function Bookings() {
                       </div>
                     </td>
 
-
                     {/* Unit */}
                     <td className="whitespace-nowrap px-5 py-4">
                       <div className="flex items-center gap-2">
@@ -771,14 +792,12 @@ export default function Bookings() {
                       </div>
                     </td>
 
-
                     {/* Date */}
                     <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
                       {formatDate(
                         booking.booking_date
                       )}
                     </td>
-
 
                     {/* Status */}
                     <td className="whitespace-nowrap px-5 py-4">
@@ -787,7 +806,6 @@ export default function Bookings() {
                         type="status"
                       />
                     </td>
-
 
                     {/* Action */}
                     <td className="whitespace-nowrap px-5 py-4 text-right">
@@ -822,12 +840,9 @@ export default function Bookings() {
               </tbody>
 
             </table>
-
           </div>
         )}
-
       </div>
-
 
       {/* ===================================================
           CREATE BOOKING MODAL
@@ -869,7 +884,6 @@ export default function Bookings() {
                 </span>
               </label>
 
-
               <select
                 value={form.lead_id}
                 onChange={(event) => {
@@ -907,11 +921,9 @@ export default function Bookings() {
 
               </select>
 
-
               <FieldError
                 message={errors.lead_id}
               />
-
 
               {leads.length === 0 && (
                 <p className="mt-2 text-xs text-amber-600">
@@ -920,7 +932,6 @@ export default function Bookings() {
               )}
 
             </div>
-
 
             {/* =================================================
                 PROJECT
@@ -935,7 +946,6 @@ export default function Bookings() {
                   *
                 </span>
               </label>
-
 
               <select
                 value={selectedProjectId}
@@ -963,13 +973,11 @@ export default function Bookings() {
 
               </select>
 
-
               <FieldError
                 message={errors.project_id}
               />
 
             </div>
-
 
             {/* =================================================
                 BUILDING
@@ -984,7 +992,6 @@ export default function Bookings() {
                   *
                 </span>
               </label>
-
 
               <select
                 value={selectedBuildingId}
@@ -1014,124 +1021,101 @@ export default function Bookings() {
 
               </select>
 
-
               <FieldError
                 message={errors.building_id}
               />
 
             </div>
 
-
             {/* =================================================
                 UNIT
             ================================================= */}
 
-            <div>
+<div>
+  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+    Property Unit
 
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Property Unit
+    <span className="ml-1 text-red-500">
+      *
+    </span>
+  </label>
 
-                <span className="ml-1 text-red-500">
-                  *
-                </span>
-              </label>
+  {!selectedBuildingId ? (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+      Select a building first
+    </div>
+  ) : units.length === 0 ? (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+      No units found in this building.
+    </div>
+  ) : (
+    <div className="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
+      {units.map((unit) => {
+        const isBooked =
+          String(unit.status).toUpperCase() === "BOOKED";
 
+        const isSelected =
+          String(form.unit_id) === String(unit.id);
 
-              <select
-                value={form.unit_id}
-                onChange={(event) => {
+        return (
+          <button
+            key={unit.id}
+            type="button"
+            disabled={isBooked}
+            onClick={() => {
+              if (isBooked) return;
 
-                  const unitId = event.target.value;
+              setForm((previous) => ({
+                ...previous,
+                unit_id: String(unit.id),
+              }));
 
-                  const selected = units.find(
-                    (unit) =>
-                      String(unit.id) ===
-                      String(unitId)
-                  );
+              setErrors((previous) => ({
+                ...previous,
+                unit_id: "",
+              }));
+            }}
+            className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition ${
+              isBooked
+                ? "cursor-not-allowed border-red-100 bg-red-50/60 opacity-70"
+                : isSelected
+                ? "border-primary-500 bg-primary-50 ring-1 ring-primary-500"
+                : "border-slate-200 bg-white hover:border-primary-300 hover:bg-primary-50"
+            }`}
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900">
+                {unit.unit_number}
+              </p>
 
-                  // Safety check:
-                  // Never allow BOOKED unit to be selected.
-                  if (
-                    selected &&
-                    selected.status !== "AVAILABLE"
-                  ) {
-                    setErrors((previous) => ({
-                      ...previous,
-                      unit_id:
-                        "This unit is already booked. Please select another unit.",
-                    }));
-
-                    return;
-                  }
-
-                  setForm((previous) => ({
-                    ...previous,
-                    unit_id: unitId,
-                  }));
-
-                  setErrors((previous) => ({
-                    ...previous,
-                    unit_id: "",
-                  }));
-
-                }}
-                disabled={!selectedBuildingId}
-                className={`input disabled:cursor-not-allowed disabled:bg-slate-50 ${
-                  errors.unit_id
-                    ? "border-red-300 focus:border-red-500 focus:ring-red-100"
-                    : ""
-                }`}
-              >
-
-                <option value="">
-                  {selectedBuildingId
-                    ? "Select an available unit"
-                    : "Select a building first"}
-                </option>
-
-
-                {units.map((unit) => (
-                  <option
-                    key={unit.id}
-                    value={unit.id}
-                    disabled={
-                      unit.status !== "AVAILABLE"
-                    }
-                  >
-                    {unit.unit_number} —{" "}
-                    {unit.type} —{" "}
-                    {formatPrice(unit.price)} —{" "}
-                    {unit.status}
-                  </option>
-                ))}
-
-              </select>
-
-
-              <FieldError
-                message={errors.unit_id}
-              />
-
-
-              {/* Unit information */}
-              {selectedBuildingId &&
-                units.length > 0 && (
-                  <p className="mt-2 text-xs text-slate-500">
-                    Booked units are shown for visibility
-                    but cannot be selected.
-                  </p>
-                )}
-
-
-              {selectedBuildingId &&
-                units.length === 0 && (
-                  <p className="mt-2 text-xs text-amber-600">
-                    No units found in this building.
-                  </p>
-                )}
-
+              <p className="mt-1 text-xs text-slate-500">
+                {unit.type} · {formatPrice(unit.price)}
+              </p>
             </div>
 
+            <span
+              className={`ml-3 shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                isBooked
+                  ? "bg-red-100 text-red-700"
+                  : "bg-emerald-100 text-emerald-700"
+              }`}
+            >
+              {isBooked ? "BOOKED" : "AVAILABLE"}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  )}
+
+  <FieldError message={errors.unit_id} />
+
+  {selectedBuildingId && units.length > 0 && (
+    <p className="mt-2 text-xs text-slate-500">
+      BOOKED units are visible but cannot be selected.
+    </p>
+  )}
+</div>
 
             {/* =================================================
                 SELECTED UNIT PREVIEW
@@ -1157,7 +1141,6 @@ export default function Bookings() {
                     </p>
 
                   </div>
-
 
                   <div className="text-right">
 
@@ -1189,7 +1172,6 @@ export default function Bookings() {
               </div>
             )}
 
-
             {/* =================================================
                 ACTIONS
             ================================================= */}
@@ -1206,7 +1188,6 @@ export default function Bookings() {
               >
                 Cancel
               </button>
-
 
               <button
                 type="submit"
@@ -1230,7 +1211,6 @@ export default function Bookings() {
         )}
 
       </Modal>
-
 
       {/* ===================================================
           CANCEL CONFIRMATION
@@ -1274,7 +1254,6 @@ export default function Bookings() {
 
           </div>
 
-
           <div className="flex justify-end gap-3">
 
             <button
@@ -1287,7 +1266,6 @@ export default function Bookings() {
             >
               Keep Booking
             </button>
-
 
             <button
               type="button"
