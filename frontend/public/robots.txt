@@ -1,0 +1,5 @@
+
+User-agent: *
+Allow: /
+
+Sitemap: https://real-estate-crm-9uy4.vercel.app/sitemap.xml
