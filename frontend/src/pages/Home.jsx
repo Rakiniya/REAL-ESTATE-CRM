@@ -29,7 +29,7 @@ export default function Home() {
 
   useEffect(() => {
   document.title =
-    "EstateFlow - Real Estate CRM for Leads, Properties & Bookings";
+  "Real Estate CRM Software | Manage Leads & Properties - EstateFlow";
 
   document.querySelector('meta[name="description"]').content =
     "Simplify real estate management with EstateFlow. Manage property leads, properties, bookings and sales activities in one CRM platform.";
