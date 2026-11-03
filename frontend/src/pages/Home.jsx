@@ -1,5 +1,6 @@
 
 import { Link } from "react-router-dom";
+import { useEffect } from "react";
 
 const features = [
   {
@@ -25,6 +26,14 @@ const features = [
 ];
 
 export default function Home() {
+
+  useEffect(() => {
+  document.title =
+    "EstateFlow - Real Estate CRM for Leads, Properties & Bookings";
+
+  document.querySelector('meta[name="description"]').content =
+    "Simplify real estate management with EstateFlow. Manage property leads, properties, bookings and sales activities in one CRM platform.";
+}, []);
   return (
     <main className="min-h-screen bg-slate-950 text-white">
       <nav
@@ -93,6 +102,16 @@ export default function Home() {
             </article>
           ))}
         </div>
+
+        <p className="mt-8 text-center text-slate-300">
+          Ready to manage your real estate business?
+          <Link
+            to="/login"
+            className="ml-2 text-blue-400 underline"
+          >
+            Explore EstateFlow CRM
+          </Link>
+        </p>
       </section>
 
       <footer className="border-t border-slate-800 px-6 py-7 text-center text-sm text-slate-400">

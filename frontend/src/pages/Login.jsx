@@ -1,8 +1,27 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useEffect } from "react";
 
 export default function Login() {
+
+  useEffect(() => {
+  document.title = "Login | EstateFlow Real Estate CRM";
+
+  let description = document.querySelector(
+    'meta[name="description"]'
+  );
+
+  if (!description) {
+    description = document.createElement("meta");
+    description.name = "description";
+    document.head.appendChild(description);
+  }
+
+  description.content =
+    "Sign in to EstateFlow to manage real estate leads, properties, bookings and sales activities.";
+}, []);
+
   const navigate = useNavigate();
   const { login } = useAuth();
 
