@@ -41,7 +41,7 @@ export default function Home() {
         className="flex items-center justify-between px-6 py-5 lg:px-16"
       >
         <div>
-          <h2 className="text-2xl font-bold">EstateFlow</h2>
+          <div className="text-2xl font-bold">EstateFlow</div>
           <p className="text-xs text-slate-400">Real Estate CRM Software</p>
         </div>
 
