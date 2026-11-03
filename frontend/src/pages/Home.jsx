@@ -28,12 +28,12 @@ const features = [
 export default function Home() {
 
   useEffect(() => {
-  document.title =
-  "Real Estate CRM Software | Manage Leads & Properties - EstateFlow";
+    document.title =
+      "Real Estate CRM Software | Manage Leads & Properties - EstateFlow";
 
-  document.querySelector('meta[name="description"]').content =
-    "Simplify real estate management with EstateFlow. Manage property leads, properties, bookings and sales activities in one CRM platform.";
-}, []);
+    document.querySelector('meta[name="description"]').content =
+      "EstateFlow is real estate CRM software to manage property leads, track properties, handle bookings and simplify your real estate sales activities.";
+  }, []);
   return (
     <main className="min-h-screen bg-slate-950 text-white">
       <nav
