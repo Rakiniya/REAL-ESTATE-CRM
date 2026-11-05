@@ -14,6 +14,7 @@ import AppLayout from "./components/layout/AppLayout";
 
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
+import NotFound from "./pages/NotFound";
 
 
 function SeoRouteHandler() {
@@ -74,7 +75,7 @@ export default function App() {
       </Route>
 
       {/* Unknown routes */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
     </>
   );

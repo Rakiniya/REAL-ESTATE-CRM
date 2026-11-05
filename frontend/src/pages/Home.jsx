@@ -69,6 +69,15 @@ export default function Home() {
           one centralized platform.
         </p>
 
+        <img
+          src="/real-estate-crm.jpg"
+          alt="Real estate CRM software dashboard for managing property leads and bookings"
+          width="800"
+          height="450"
+          loading="lazy"
+          className="mx-auto mt-8 rounded-xl"
+        />
+
         <Link
           to="/login"
           className="mt-9 inline-block rounded-xl bg-blue-600 px-7 py-3.5 font-semibold hover:bg-blue-500"
